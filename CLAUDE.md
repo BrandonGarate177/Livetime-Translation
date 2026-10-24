@@ -69,6 +69,10 @@ Done:
 - [x] Twilio-protocol simulator and test clips
 - [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key. Not yet run against live vendors (no keys in `.env`).
 - [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts`, which adapts #6/#7/#8 to the contract.
+- [x] Vendor check with real keys: Deepgram nova-3 accurate on en/es; ElevenLabs Flash TTFB 150–180 ms;
+  translate TTFT Groq `openai/gpt-oss-120b` ~390 ms vs Claude Haiku 5.5 ~480 ms (same es quality) → `TRANSLATE_PROVIDER=groq`.
+  Re-check Haiku vs Groq on Ukrainian before adding that persona.
+- [x] **Tier A demo:** real call en ↔ es with stock voices, tagged `demo-a`
 
 Accounts (checked 2026-10-24):
 - [x] Twilio upgraded to a full account; one number bought (persona: Angel, Spanish, rings Angel's cell)
@@ -79,8 +83,6 @@ Accounts (checked 2026-10-24):
 - [ ] Optional: second number for the Ukrainian teammate's persona
 
 To do, in milestone order (see `docs/PLAN.md` §8):
-- [ ] **Vendor check (needs keys):** `scripts/try-stt.ts` on the en/es/uk clips, `try-translate.ts` TTFT per provider (the #7 bake-off; pick `TRANSLATE_PROVIDER`), `try-tts.ts` TTFB ~400 ms warm. The modules are unit-tested against fake sockets only until then.
-- [ ] **Tier A demo**: `PIPELINE=real`, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
 - [ ] Live judge clone + delete on hang-up (`voice/clone.ts`), consent prompt pre-rendered in 4 languages
 - [ ] Dashboard (SSE): transcripts both sides, per-stage latency, clone status
