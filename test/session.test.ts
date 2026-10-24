@@ -113,20 +113,19 @@ test("same language on both legs relays raw audio", async () => {
 test("warns loudly when a leg would be synthesized with an empty voice id", () => {
   const warnings: string[] = [];
   const orig = console.log;
-  console.log = (msg: string) => { if (/voice/i.test(msg)) warnings.push(msg); };
-  // Independent of whatever .env holds: force both fallback voices empty for this test only.
-  const saved = { m: config.fallbackVoiceM, f: config.fallbackVoiceF };
+  // A developer's .env may set the fallback voices, so blank them for this test.
+  const { fallbackVoiceM, fallbackVoiceF } = config;
   config.fallbackVoiceM = "";
   config.fallbackVoiceF = "";
+  console.log = (msg: string) => { if (/voice/i.test(msg)) warnings.push(msg); };
   try {
     const s = new CallSession("sid5", { ...OLENA, voiceId: "" }, "translate", "en", fakePipeline);
-    s.attach(asLeg(new FakeLeg("A"))); // B hears A in FALLBACK_VOICE_M
-    s.attach(asLeg(new FakeLeg("B"))); // A hears persona.voiceId || FALLBACK_VOICE_F
+    s.attach(asLeg(new FakeLeg("A"))); // B hears A in FALLBACK_VOICE_M, blanked above
+    s.attach(asLeg(new FakeLeg("B"))); // A hears persona.voiceId || FALLBACK_VOICE_F, both ""
     s.end("test");
   } finally {
     console.log = orig;
-    config.fallbackVoiceM = saved.m;
-    config.fallbackVoiceF = saved.f;
+    Object.assign(config, { fallbackVoiceM, fallbackVoiceF });
   }
   assert.equal(warnings.length, 2, warnings.join("\n"));
   assert.match(warnings[0], /FALLBACK_VOICE_M/);
