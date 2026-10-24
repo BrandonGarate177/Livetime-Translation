@@ -8,7 +8,7 @@
     "start": "tsx src/server.ts",
     "sim": "tsx scripts/sim-call.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"test/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "engines": {
     "node": ">=22"
