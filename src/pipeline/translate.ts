@@ -123,6 +123,7 @@ const groq: TranslateBackend = {
         stream: true,
         temperature: 0.2,
         max_tokens: 400,
+        ...(config.groqReasoningEffort && { reasoning_effort: config.groqReasoningEffort }),
       }),
     });
     if (!res.ok || !res.body) throw new Error(`groq ${res.status}: ${(await res.text()).slice(0, 200)}`);

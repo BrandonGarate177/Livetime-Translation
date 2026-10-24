@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-export type Lang = "en" | "es" | "uk" | "ru" | "pl";
+export type Lang = "en" | "es" | "uk" | "ru";
 export type BridgeMode = "echo" | "raw" | "translate";
 export type TranslateProvider = "groq" | "anthropic" | "deepl" | "mock";
 
@@ -53,6 +53,9 @@ export const config = {
   }),
   groqApiKey: env.GROQ_API_KEY ?? "",
   groqModel: env.GROQ_MODEL ?? "qwen/qwen3.8-27b",
+  // Reasoning models think before the first token; "none" (qwen) or "low" (gpt-oss) cuts ~350 ms per turn.
+  // Set to empty to send no reasoning_effort at all.
+  groqReasoningEffort: env.GROQ_REASONING_EFFORT ?? "none",
   anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: env.ANTHROPIC_MODEL ?? "claude-haiku-5-5",
   deeplApiKey: env.DEEPL_API_KEY ?? "",
