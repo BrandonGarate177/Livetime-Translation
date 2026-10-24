@@ -75,7 +75,14 @@ export class CallSession extends EventEmitter<SessionEvents> {
       this.log(`${leg.id} ${srcLang}→${dstLang}: ${e.text}`);
       this.emit("translation", { leg: leg.id, ...e });
     });
-    direction.on("timing", (e) => this.emit("timing", { leg: leg.id, ...e }));
+    direction.on("timing", (e) => {
+      // Latency is the demo: speech end → transcript → first translated token → first audio out.
+      this.log(
+        `${leg.id} latency: stt ${e.transcript - e.speechEnd}ms, translate ${e.firstToken - e.transcript}ms, ` +
+          `tts ${e.firstAudio - e.firstToken}ms, total ${e.firstAudio - e.speechEnd}ms`,
+      );
+      this.emit("timing", { leg: leg.id, ...e });
+    });
     direction.start();
     this.directions[leg.id] = direction;
   }

@@ -34,7 +34,11 @@ a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call aud
 | `src/server.ts` | Fastify HTTP + `/media` WebSocket. Binds each stream to a session using the `<Parameter>`s `sid` and `leg` |
 | `src/twiml.ts` | `/voice/inbound` (answers leg A, dials leg B), `/voice/status` (busy/no-answer handling), hang-up helpers |
 | `src/config.ts` | Env parsing; `PERSONAS_JSON` maps a Twilio number to `{name, lang, forwardTo, voiceId}` |
-| `src/call/session.ts` | `CallSession`: pairs legs A/B and routes audio by `BRIDGE_MODE` (`echo` / `raw` / `translate`) |
+| `src/call/session.ts` | `CallSession`: pairs legs A/B and routes audio by `BRIDGE_MODE` (`echo` / `raw` / `translate`); emits `transcript`/`translation`/`timing` for the dashboard |
+| `src/call/direction.ts` | `Direction`: one speaking leg → STT → translate → TTS → the listening leg; sequential per direction, last-3-turn history, per-turn timing |
+| `src/pipeline/contract.ts` | The STT/translate/TTS interfaces from issues #6/#7/#8 as TypeScript types, plus the `Pipeline` factory the session consumes |
+| `src/pipeline/index.ts` | `loadPipeline()`: `PIPELINE=real` adapts `stt.ts`/`translate.ts`/`tts.ts` to the contract; `PIPELINE=fake` returns the offline stand-ins |
+| `src/pipeline/fake.ts` | Offline STT (energy VAD + canned text), dictionary translate, macOS `say` TTS, for the simulator and tests |
 | `src/call/leg.ts` | One Twilio Media Stream: `sendAudio` (160-byte frames), `mark`, `clear`, `isPlaying` |
 | `src/audio/mulaw.ts` | μ-law ↔ PCM16, WAV read/write, frame RMS for voice activity |
 | `scripts/sim-call.ts` | Fake Twilio: streams WAVs in as legs A/B, honors `mark`/`clear`, writes `out/heard-A.wav` and `out/heard-B.wav` |
@@ -42,8 +46,10 @@ a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call aud
 | `docs/PLAN.md` | Full approved plan: latency budget, vendors, milestones, demo script, risks |
 | `docs/DEVELOPMENT.md` | How to run locally, expose with ngrok, and test without phone minutes |
 
-Planned modules (not yet written): `src/pipeline/{stt,langid,translate,tts}.ts`,
-`src/voice/clone.ts`, `src/metrics.ts`, `public/dashboard.html`, `scripts/prerender-prompts.ts`.
+In flight on other branches: `src/pipeline/{stt,translate,tts}.ts` (#6/#7/#8). Planned: `src/pipeline/langid.ts`,
+`src/voice/clone.ts`, `public/dashboard.html`, `scripts/prerender-prompts.ts`.
+
+Tests: `npm test` (Node's `node:test` via tsx). `test/` holds the session/direction/fake tests; pipeline modules keep theirs next to the code.
 
 ## Status
 
@@ -53,6 +59,7 @@ Done:
 - [x] Telephony core: leg/session/TwiML; dial-out to persona; hang-up on either side; busy/no-answer message
 - [x] `BRIDGE_MODE=echo` and `raw`, both verified end to end with the simulator (not yet on real phones)
 - [x] Twilio-protocol simulator and test clips
+- [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts` once #6/#7/#8 merge; then switch its dynamic imports to static ones.
 
 Blocked on accounts (owner: whoever holds the card):
 - [ ] **Upgrade Twilio from Trial to paid.** Trial plays a banner on every call and can only call verified numbers.
@@ -67,7 +74,7 @@ To do, in milestone order (see `docs/PLAN.md` §8):
 - [ ] `pipeline/stt.ts`: Deepgram live socket per leg (`encoding=mulaw&sample_rate=8000`, `endpointing=300`)
 - [ ] `pipeline/translate.ts`: streaming LLM, last 3 turns as context, provider switch + DeepL fallback; hour-1 quality bake-off
 - [ ] `pipeline/tts.ts`: ElevenLabs input-streaming WS per leg, `ulaw_8000`, keepalive, voice swap
-- [ ] `BRIDGE_MODE=translate` wired in `CallSession` → **Tier A demo** (judge's language fixed to en)
+- [ ] **Tier A demo**: `PIPELINE=real` with #6/#7/#8 merged, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
 - [ ] Language auto-detection on the judge's first utterance (`pipeline/langid.ts`)
 - [ ] Live judge clone + delete on hang-up (`voice/clone.ts`), consent prompt pre-rendered in 4 languages

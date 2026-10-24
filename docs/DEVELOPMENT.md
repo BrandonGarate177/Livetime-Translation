@@ -30,3 +30,24 @@ npm run sim -- --a test-audio/en-hello.wav --b test-audio/uk-hello.wav --b-delay
 ```
 The simulator speaks the Twilio Media Streams protocol (including `mark`/`clear`) and writes what
 each leg heard to `out/heard-A.wav` and `out/heard-B.wav`.
+
+## Translate mode offline (no API keys)
+`PIPELINE=fake` swaps the vendors for offline stand-ins: an energy-VAD "recognizer" that emits the
+test clip's sentence, a dictionary translator, and macOS `say` as the TTS (Samantha/Paulina/Lesya/Milena).
+It proves the wiring and the latency plumbing, not quality.
+```bash
+BRIDGE_MODE=translate PIPELINE=fake npm run dev
+npm run sim -- --a test-audio/en-hello.wav --b test-audio/uk-hello.wav --b-delay 1
+afplay out/heard-B.wav     # Ukrainian, what the teammate heard
+afplay out/heard-A.wav     # English, what the judge heard
+```
+The server log prints each translation and a per-turn latency line
+(`stt … translate … tts … total`). `FAKE_TTS=tone` replaces `say` with a beep for fast tests.
+
+`PIPELINE=real` (the default) loads `src/pipeline/{stt,translate,tts}.ts` from #6/#7/#8 through
+`src/pipeline/index.ts`, which adapts their exports to `src/pipeline/contract.ts`.
+
+## Tests
+```bash
+npm test                   # node:test via tsx; src/**/*.test.ts and test/**/*.test.ts
+```
