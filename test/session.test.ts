@@ -109,3 +109,20 @@ test("same language on both legs relays raw audio", async () => {
   assert.deepEqual(B.sent[0], frame);
   s.end("test");
 });
+
+test("warns loudly when a leg would be synthesized with an empty voice id", () => {
+  const warnings: string[] = [];
+  const orig = console.log;
+  console.log = (msg: string) => { if (/voice/i.test(msg)) warnings.push(msg); };
+  try {
+    const s = new CallSession("sid5", { ...OLENA, voiceId: "" }, "translate", "en", fakePipeline);
+    s.attach(asLeg(new FakeLeg("A"))); // B hears A in FALLBACK_VOICE_M, which is "" in this test env
+    s.attach(asLeg(new FakeLeg("B"))); // A hears persona.voiceId || FALLBACK_VOICE_F, both ""
+    s.end("test");
+  } finally {
+    console.log = orig;
+  }
+  assert.equal(warnings.length, 2, warnings.join("\n"));
+  assert.match(warnings[0], /FALLBACK_VOICE_M/);
+  assert.match(warnings[1], /FALLBACK_VOICE_F/);
+});

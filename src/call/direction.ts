@@ -59,7 +59,15 @@ export class Direction extends EventEmitter<DirectionEvents> {
     this.stt.on("transcript", (t) => this.onTranscript(t));
     this.stt.on("error", (err) => log(`stt error: ${err.message}`));
     this.tts.on("audio", (ulaw) => this.onAudio(ulaw));
-    this.tts.on("done", () => (this.playing = false));
+    this.tts.on("done", () => {
+      if (!this.playing) {
+        // The flush produced no audio at all (vendor socket closed early): retire its timing so the next
+        // utterance's first audio isn't attributed to this one.
+        const stale = this.awaitingAudio.shift();
+        if (stale) log("tts produced no audio for an utterance");
+      }
+      this.playing = false;
+    });
     this.tts.on("error", (err) => log(`tts error: ${err.message}`));
     from.on("audio", this.onFrame);
   }
@@ -81,17 +89,24 @@ export class Direction extends EventEmitter<DirectionEvents> {
   private onTranscript(t: Transcript): void {
     this.emit("transcript", { text: t.text, isFinal: t.isFinal });
     if (!t.isFinal || t.text.trim() === "") return;
-    // Sequential per direction so the TTS text never interleaves two utterances.
-    this.queue = this.queue.then(() => this.translateUtterance(t));
+    // Captured now, not when the job starts: a queued final must not see speech that came after it.
+    const speechEnd = this.lastVoicedAt || t.at;
+    // Sequential per direction so the TTS text never interleaves two utterances. The catch keeps the
+    // chain alive if a job (or one of our event listeners) throws.
+    this.queue = this.queue
+      .then(() => this.translateUtterance(t, speechEnd))
+      .catch((err) => this.opts.log(`utterance dropped: ${(err as Error).message}`));
   }
 
-  private async translateUtterance(t: Transcript): Promise<void> {
+  private async translateUtterance(t: Transcript, speechEnd: number): Promise<void> {
     if (this.closed) return;
     const { pipeline, srcLang, dstLang, history, log } = this.opts;
-    const timing: Timing = { speechEnd: this.lastVoicedAt, transcript: t.at, firstToken: 0, firstAudio: 0 };
+    const timing: Timing = { speechEnd, transcript: t.at, firstToken: 0, firstAudio: 0 };
     const ac = new AbortController();
     this.current = ac;
     let translation = "";
+    let sent = false;
+    let failed = false;
     try {
       const stream = pipeline.translate({ text: t.text, src: srcLang, dst: dstLang, history: [...history], signal: ac.signal });
       for await (const chunk of stream) {
@@ -99,17 +114,21 @@ export class Direction extends EventEmitter<DirectionEvents> {
         if (!timing.firstToken) timing.firstToken = Date.now();
         translation += chunk;
         this.tts?.sendText(chunk);
+        sent = true;
       }
     } catch (err) {
       log(`translate failed: ${(err as Error).message}`);
-      return;
+      failed = true;
     } finally {
       if (this.current === ac) this.current = undefined;
     }
-    if (ac.signal.aborted || translation.trim() === "") return;
+    if (ac.signal.aborted) return;
+    if (!sent) return;
 
+    // Whatever reached the TTS is spoken, even a fragment: leaving the utterance open would glue it to the next one.
     this.awaitingAudio.push(timing);
     this.tts?.flush();
+    if (failed || translation.trim() === "") return;
     history.push({ src: srcLang, text: t.text, translation });
     while (history.length > HISTORY_TURNS) history.shift();
     this.emit("translation", { text: translation });

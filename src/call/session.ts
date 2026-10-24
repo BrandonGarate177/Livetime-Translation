@@ -60,6 +60,10 @@ export class CallSession extends EventEmitter<SessionEvents> {
     }
     // B hears the judge in a stock voice until the live clone (#12) lands; A hears the persona's own clone.
     const voiceId = leg.id === "A" ? config.fallbackVoiceM : this.persona.voiceId || config.fallbackVoiceF;
+    if (!voiceId) {
+      const fix = leg.id === "A" ? "FALLBACK_VOICE_M" : "FALLBACK_VOICE_F or the persona's voiceId";
+      this.log(`WARNING: leg ${leg.id} will be synthesized with an empty voice id; set ${fix} in .env`);
+    }
     const direction = new Direction({
       pipeline: this.pipeline!,
       from: leg,

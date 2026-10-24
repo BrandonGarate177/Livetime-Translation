@@ -33,7 +33,9 @@ export interface TranslateOpts {
 
 export interface TtsEvents {
   audio: [ulaw: Buffer]; // ulaw_8000, pass straight to Leg.sendAudio
-  done: []; // the last audio for a flush has arrived
+  // Exactly one `done` per flush(), after that flush's audio and before any audio of the next flush.
+  // Direction's per-turn timing relies on this ordering.
+  done: [];
   error: [err: Error];
 }
 export interface TtsLike extends EventEmitter<TtsEvents> {

@@ -160,3 +160,104 @@ test("speak() helper drives FakeStt to one final", () => {
   speak(leg);
   assert.equal(n, 1);
 });
+
+// --- Review fixes ---
+
+test("a throwing event listener does not poison the queue", async () => {
+  const { pipeline, stt, final } = stubPipeline();
+  const B = new FakeLeg("B");
+  const d = direction(pipeline, new FakeLeg("A"), B);
+  let seen = 0;
+  d.on("translation", () => { if (++seen === 1) throw new Error("dashboard listener blew up"); });
+  const unhandled: unknown[] = [];
+  const onUnhandled = (e: unknown) => unhandled.push(e);
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    stt.emit("transcript", final("first"));
+    await sleep(20);
+    stt.emit("transcript", final("second"));
+    await sleep(20);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+  assert.equal(seen, 2, "second utterance was still translated");
+  assert.equal(B.sent.length, 2);
+  assert.deepEqual(unhandled, []);
+  d.close();
+});
+
+test("a translate failure after chunks were sent still flushes the TTS utterance", async () => {
+  let calls = 0;
+  const flushes: string[][] = [];
+  const { pipeline, stt, tts, final } = stubPipeline({
+    translate: async function* ({ text }) {
+      if (++calls === 1) { yield "half "; throw new Error("provider died mid-stream"); }
+      yield `${text} `;
+    },
+  });
+  const realFlush = tts.flush;
+  tts.flush = () => { flushes.push([...tts.text]); tts.text.length = 0; realFlush(); };
+  const d = direction(pipeline, new FakeLeg("A"), new FakeLeg("B"));
+  stt.emit("transcript", final("one"));
+  await sleep(20);
+  assert.deepEqual(flushes, [["half "]], "the dangling fragment was flushed, not left open");
+  stt.emit("transcript", final("two"));
+  await sleep(20);
+  assert.deepEqual(flushes, [["half "], ["two "]], "next utterance is not glued to the stale fragment");
+  d.close();
+});
+
+test("a flush that yields done without audio does not shift timing onto the next utterance", async () => {
+  let flushes = 0;
+  const { pipeline, stt, tts } = stubPipeline();
+  tts.flush = () => { if (++flushes === 1) { tts.emit("done"); return; } tts.emit("audio", Buffer.alloc(800)); tts.emit("done"); };
+  const d = direction(pipeline, new FakeLeg("A"), new FakeLeg("B"));
+  const timings: { transcript: number }[] = [];
+  d.on("timing", (t) => timings.push(t));
+  stt.emit("transcript", { text: "one", isFinal: true, speechFinal: true, at: 1000 });
+  await sleep(20);
+  stt.emit("transcript", { text: "two", isFinal: true, speechFinal: true, at: 2000 });
+  await sleep(20);
+  assert.equal(timings.length, 1);
+  assert.equal(timings[0].transcript, 2000, "timing belongs to the utterance that actually produced audio");
+  d.close();
+});
+
+test("audio emitted after close is not sent to the listener", async () => {
+  const { pipeline, tts } = stubPipeline();
+  const B = new FakeLeg("B");
+  const d = direction(pipeline, new FakeLeg("A"), B);
+  d.close();
+  tts.emit("audio", Buffer.alloc(160));
+  assert.equal(B.sent.length, 0);
+});
+
+test("speechEnd is captured when the transcript arrives, never after it", async () => {
+  const { pipeline, stt, final } = stubPipeline({
+    translate: async function* ({ text }) { if (text === "slow") await sleep(40); yield `${text} `; },
+  });
+  const A = new FakeLeg("A");
+  const d = direction(pipeline, A, new FakeLeg("B"));
+  const timings: { speechEnd: number; transcript: number }[] = [];
+  d.on("timing", (t) => timings.push(t));
+  A.emit("audio", LOUD);
+  stt.emit("transcript", final("slow"));
+  stt.emit("transcript", final("fast"));
+  await sleep(10);
+  A.emit("audio", LOUD); // speaker keeps talking while both jobs are queued
+  await sleep(80);
+  assert.equal(timings.length, 2);
+  for (const t of timings) assert.ok(t.transcript >= t.speechEnd && t.speechEnd > 0, JSON.stringify(t));
+  d.close();
+});
+
+test("a quiet speaker (no voiced frame seen) gets speechEnd = transcript time, not 0", async () => {
+  const { pipeline, stt } = stubPipeline();
+  const d = direction(pipeline, new FakeLeg("A"), new FakeLeg("B"));
+  const timings: { speechEnd: number; transcript: number }[] = [];
+  d.on("timing", (t) => timings.push(t));
+  stt.emit("transcript", { text: "whisper", isFinal: true, speechFinal: true, at: 5000 });
+  await sleep(20);
+  assert.deepEqual(timings.map((t) => t.speechEnd), [5000]);
+  d.close();
+});
