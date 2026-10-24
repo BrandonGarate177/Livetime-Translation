@@ -1,13 +1,12 @@
-// Picks the pipeline the session runs on. PIPELINE=fake is the offline stand-in; PIPELINE=real loads
-// src/pipeline/{stt,translate,tts}.ts (#6/#7/#8) and adapts them to the contract in contract.ts.
-//
-// The real modules are imported through a string variable so this file compiles before they exist and
-// the #9 branch never has to merge-conflict with the pipeline branches.
-// TODO(#9): switch to static imports once #6/#7/#8 are merged and their shapes are settled.
+// Picks the pipeline the session runs on. PIPELINE=fake is the offline stand-in; PIPELINE=real adapts
+// src/pipeline/{stt,translate,tts}.ts (#6/#7/#8) to the contract in contract.ts.
 import { EventEmitter } from "node:events";
 import { config, type Lang } from "../config.js";
 import type { Pipeline, SttEvents, SttLike, TranslateOpts, TtsEvents, TtsLike } from "./contract.js";
 import { fakePipeline } from "./fake.js";
+import * as sttModule from "./stt.js";
+import * as translateModule from "./translate.js";
+import * as ttsModule from "./tts.js";
 
 type AnyModule = Record<string, any>;
 type Emitter = EventEmitter & Record<string, any>;
@@ -102,20 +101,10 @@ export function adaptTtsModule(mod: AnyModule): (voiceId: string, lang: Lang) =>
 
 export async function loadPipeline(): Promise<Pipeline> {
   if (config.pipeline === "fake") return fakePipeline;
-  const paths = ["./stt.js", "./translate.js", "./tts.js"];
-  let mods: AnyModule[];
-  try {
-    mods = await Promise.all(paths.map((p) => import(p)));
-  } catch (err) {
-    throw new Error(
-      `PIPELINE=real needs src/pipeline/{stt,translate,tts}.ts from #6/#7/#8 (${(err as Error).message}); set PIPELINE=fake to test offline`,
-    );
-  }
-  const [stt, translate, tts] = mods;
   return {
     name: "real",
-    createStt: adaptSttModule(stt),
-    ...adaptTranslateModule(translate),
-    createTts: adaptTtsModule(tts),
+    createStt: adaptSttModule(sttModule),
+    ...adaptTranslateModule(translateModule),
+    createTts: adaptTtsModule(ttsModule),
   };
 }

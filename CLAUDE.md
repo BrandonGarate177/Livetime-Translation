@@ -39,6 +39,11 @@ a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call aud
 | `src/pipeline/contract.ts` | The STT/translate/TTS interfaces from issues #6/#7/#8 as TypeScript types, plus the `Pipeline` factory the session consumes |
 | `src/pipeline/index.ts` | `loadPipeline()`: `PIPELINE=real` adapts `stt.ts`/`translate.ts`/`tts.ts` to the contract; `PIPELINE=fake` returns the offline stand-ins |
 | `src/pipeline/fake.ts` | Offline STT (energy VAD + canned text), dictionary translate, macOS `say` TTS, for the simulator and tests |
+| `src/pipeline/stt.ts` | #6 `SttStream`: one Deepgram live socket per leg, μ-law 8k in, `transcript` (+`at`) and `utteranceEnd` events, KeepAlive |
+| `src/pipeline/translate.ts` | #7 `translate(opts)` async stream + `prewarm()`; `TRANSLATE_PROVIDER` groq \| anthropic \| deepl \| mock, DeepL fallback, abortable |
+| `src/pipeline/tts.ts` | #8 `TtsStream`: ElevenLabs Flash to `ulaw_8000`, one socket per utterance with a warm spare, in-order audio, `setVoice` between utterances |
+| `src/pipeline/socket.ts`, `testing/fake-socket.ts` | WebSocket slice the modules use, and the fake that lets tests play the vendor side |
+| `scripts/try-{stt,translate,tts}.ts` | One-vendor checks with timing (TTFT / TTFB); the done-criteria from #6/#7/#8 |
 | `src/call/leg.ts` | One Twilio Media Stream: `sendAudio` (160-byte frames), `mark`, `clear`, `isPlaying` |
 | `src/audio/mulaw.ts` | μ-law ↔ PCM16, WAV read/write, frame RMS for voice activity |
 | `scripts/sim-call.ts` | Fake Twilio: streams WAVs in as legs A/B, honors `mark`/`clear`, writes `out/heard-A.wav` and `out/heard-B.wav` |
@@ -46,8 +51,7 @@ a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call aud
 | `docs/PLAN.md` | Full approved plan: latency budget, vendors, milestones, demo script, risks |
 | `docs/DEVELOPMENT.md` | How to run locally, expose with ngrok, and test without phone minutes |
 
-In flight on other branches: `src/pipeline/{stt,translate,tts}.ts` (#6/#7/#8). Planned: `src/pipeline/langid.ts`,
-`src/voice/clone.ts`, `public/dashboard.html`, `scripts/prerender-prompts.ts`.
+Planned: `src/pipeline/langid.ts`, `src/voice/clone.ts`, `public/dashboard.html`, `scripts/prerender-prompts.ts`.
 
 Tests: `npm test` (Node's `node:test` via tsx). `test/` holds the session/direction/fake tests; pipeline modules keep theirs next to the code.
 
@@ -59,7 +63,8 @@ Done:
 - [x] Telephony core: leg/session/TwiML; dial-out to persona; hang-up on either side; busy/no-answer message
 - [x] `BRIDGE_MODE=echo` and `raw`, both verified end to end with the simulator (not yet on real phones)
 - [x] Twilio-protocol simulator and test clips
-- [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts` once #6/#7/#8 merge; then switch its dynamic imports to static ones.
+- [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key. Not yet run against live vendors (no keys in `.env`).
+- [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts`, which adapts #6/#7/#8 to the contract.
 
 Blocked on accounts (owner: whoever holds the card):
 - [ ] **Upgrade Twilio from Trial to paid.** Trial plays a banner on every call and can only call verified numbers.
@@ -71,10 +76,8 @@ Blocked on accounts (owner: whoever holds the card):
 
 To do, in milestone order (see `docs/PLAN.md` §8):
 - [ ] **Spike gate:** real call in `echo` mode, then `raw` mode with two real phones
-- [ ] `pipeline/stt.ts`: Deepgram live socket per leg (`encoding=mulaw&sample_rate=8000`, `endpointing=300`)
-- [ ] `pipeline/translate.ts`: streaming LLM, last 3 turns as context, provider switch + DeepL fallback; hour-1 quality bake-off
-- [ ] `pipeline/tts.ts`: ElevenLabs input-streaming WS per leg, `ulaw_8000`, keepalive, voice swap
-- [ ] **Tier A demo**: `PIPELINE=real` with #6/#7/#8 merged, one real call in each direction, tag `demo-a`
+- [ ] **Vendor check (needs keys):** `scripts/try-stt.ts` on the en/es/uk clips, `try-translate.ts` TTFT per provider (the #7 bake-off; pick `TRANSLATE_PROVIDER`), `try-tts.ts` TTFB ~400 ms warm. The modules are unit-tested against fake sockets only until then.
+- [ ] **Tier A demo**: `PIPELINE=real`, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
 - [ ] Language auto-detection on the judge's first utterance (`pipeline/langid.ts`)
 - [ ] Live judge clone + delete on hang-up (`voice/clone.ts`), consent prompt pre-rendered in 4 languages

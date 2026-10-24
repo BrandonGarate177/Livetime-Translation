@@ -2,9 +2,7 @@ import "dotenv/config";
 
 export type Lang = "en" | "es" | "uk" | "ru";
 export type BridgeMode = "echo" | "raw" | "translate";
-export type SttProvider = "deepgram" | "mock";
 export type TranslateProvider = "groq" | "anthropic" | "deepl" | "mock";
-export type TtsProvider = "elevenlabs" | "mock";
 
 export interface Persona {
   name: string;
@@ -22,12 +20,12 @@ function parsePersonas(raw: string | undefined): Record<string, Persona> {
   }
 }
 
-/** A vendor is used only when its flag names it AND its key is present; otherwise the mock keeps the call alive. */
-function provider<T extends string>(name: string | undefined, fallback: T, keyed: Record<string, string>): T {
-  const wanted = (name ?? fallback) as T;
+/** The translation vendor is used only when its key is present; otherwise the mock keeps the call alive. */
+function translateProvider(name: string | undefined, keyed: Record<string, string>): TranslateProvider {
+  const wanted = (name || "groq") as TranslateProvider;
   if (wanted === "mock" || keyed[wanted]) return wanted;
-  console.warn(`${wanted} selected but its API key is empty; using mock`);
-  return "mock" as T;
+  console.warn(`TRANSLATE_PROVIDER=${wanted} but its API key is empty; using mock`);
+  return "mock";
 }
 
 const env = process.env;
@@ -47,9 +45,8 @@ export const config = {
   pipeline: (env.PIPELINE ?? "real") as "real" | "fake",
   deepgramApiKey: env.DEEPGRAM_API_KEY ?? "",
   deepgramModel: env.DEEPGRAM_MODEL ?? "nova-3",
-  sttProvider: provider<SttProvider>(env.STT_PROVIDER, "deepgram", { deepgram: env.DEEPGRAM_API_KEY ?? "" }),
 
-  translateProvider: provider<TranslateProvider>(env.TRANSLATE_PROVIDER, "groq", {
+  translateProvider: translateProvider(env.TRANSLATE_PROVIDER, {
     groq: env.GROQ_API_KEY ?? "",
     anthropic: env.ANTHROPIC_API_KEY ?? "",
     deepl: env.DEEPL_API_KEY ?? "",
@@ -60,7 +57,6 @@ export const config = {
   anthropicModel: env.ANTHROPIC_MODEL ?? "claude-haiku-5-5",
   deeplApiKey: env.DEEPL_API_KEY ?? "",
 
-  ttsProvider: provider<TtsProvider>(env.TTS_PROVIDER, "elevenlabs", { elevenlabs: env.ELEVENLABS_API_KEY ?? "" }),
   elevenlabsApiKey: env.ELEVENLABS_API_KEY ?? "",
   elevenModel: env.ELEVEN_TTS_MODEL ?? "eleven_flash_v2_5",
   fallbackVoiceM: env.FALLBACK_VOICE_M ?? "",
