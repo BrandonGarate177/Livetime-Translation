@@ -5,6 +5,10 @@ This is a hackathon entry for the theme "invisible interfaces." Someone dials an
 
 **Decisions so far:** Twilio (paid), ElevenLabs Starter+, Deepgram, and a fast LLM are all available. The stack is Node/TypeScript. **The judge dials a "teammate's number"**: a Twilio number that *is* Olena (Ukrainian) or Diego (Spanish). The judge's language is **auto-detected** from their first utterance. The teammate's language is known from config.
 
+> **Update (2026-10-24):** the judge always speaks and hears English, so caller language auto-detection
+> is dropped (`DEFAULT_CALLER_LANG=en`). Sections below that mention detecting the judge's language no longer apply.
+> Personas are teammates: Angel (Spanish) and a Ukrainian speaker.
+
 ---
 
 ## 1. Architecture (full duplex)

@@ -14,7 +14,9 @@ person speaks their own language and hears the other in theirs, in the other per
 no-app design in `docs/PLAN.md` wins wherever the two disagree.
 
 - Deadline: 5 hours from kickoff on 2026-10-24. Feature freeze at 4:15 into the build, then rehearse.
-- Demo languages: English, Spanish, Ukrainian, Russian. Headline pair: en ↔ uk if we get a second number; today the one persona is Diego (es).
+- **The judge always speaks and hears English.** Only the teammate personas speak other languages:
+  Angel (Spanish) and a second teammate (Ukrainian; also speaks Russian and Polish).
+- Personas today: Angel (es) on the one Twilio number. A second number would add the Ukrainian teammate.
 - Pipeline diagram for humans: https://claude.ai/artifact/9sdDnuLqLbjoXNKMsurQGH (opens only once the owner shares it)
 
 ## Architecture in one paragraph
@@ -25,7 +27,8 @@ bidirectional `<Connect><Stream>` (leg A), and dials the teammate's real cell wi
 direction: Twilio μ-law 8 kHz → Deepgram streaming STT → fast LLM translation (streamed; Claude Haiku 5.5 or
 Groq `openai/gpt-oss-120b`, since Groq no longer lists Llama 70B) →
 ElevenLabs Flash streaming TTS with `output_format=ulaw_8000` → the other leg. No transcoding in the
-hot path. The judge's language is auto-detected from their first utterance. The teammate's voice is
+hot path. The caller (leg A) is always English (`DEFAULT_CALLER_LANG=en`); there is no language
+detection. The persona's language comes from `PERSONAS_JSON`. The teammate's voice is
 a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call audio.
 
 ## Code map
@@ -52,7 +55,7 @@ a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call aud
 | `docs/PLAN.md` | Full approved plan: latency budget, vendors, milestones, demo script, risks |
 | `docs/DEVELOPMENT.md` | How to run locally, expose with ngrok, and test without phone minutes |
 
-Planned: `src/pipeline/langid.ts`, `src/voice/clone.ts`, `public/dashboard.html`, `scripts/prerender-prompts.ts`.
+Planned: `src/voice/clone.ts`, `public/dashboard.html`, `scripts/prerender-prompts.ts`.
 
 Tests: `npm test` (Node's `node:test` via tsx). `test/` holds the session/direction/fake tests; pipeline modules keep theirs next to the code.
 
@@ -68,18 +71,17 @@ Done:
 - [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts`, which adapts #6/#7/#8 to the contract.
 
 Accounts (checked 2026-10-24):
-- [x] Twilio upgraded to a full account; one number bought (persona: Diego, Spanish)
+- [x] Twilio upgraded to a full account; one number bought (persona: Angel, Spanish, rings Angel's cell)
 - [x] Keys working: Deepgram, ElevenLabs, Groq, Anthropic (`claude-haiku-5-5` available)
 - [x] Static ngrok domain in `PUBLIC_HOST`; Twilio number's Voice webhook points at `/voice/inbound`
 - [x] ElevenLabs on Starter (instant cloning, 40k chars, 10 voice slots)
 - [ ] Record each teammate persona (1–2 min of clean audio) → ElevenLabs instant clone → `voiceId`
-- [ ] Optional: second number for a Ukrainian persona (Olena), the plan's headline pair
+- [ ] Optional: second number for the Ukrainian teammate's persona
 
 To do, in milestone order (see `docs/PLAN.md` §8):
 - [ ] **Vendor check (needs keys):** `scripts/try-stt.ts` on the en/es/uk clips, `try-translate.ts` TTFT per provider (the #7 bake-off; pick `TRANSLATE_PROVIDER`), `try-tts.ts` TTFB ~400 ms warm. The modules are unit-tested against fake sockets only until then.
 - [ ] **Tier A demo**: `PIPELINE=real`, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
-- [ ] Language auto-detection on the judge's first utterance (`pipeline/langid.ts`)
 - [ ] Live judge clone + delete on hang-up (`voice/clone.ts`), consent prompt pre-rendered in 4 languages
 - [ ] Dashboard (SSE): transcripts both sides, per-stage latency, clone status
 - [ ] Deploy to Fly.io/Railway in us-east; point numbers at it → **Tier B demo**
