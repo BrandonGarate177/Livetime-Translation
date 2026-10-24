@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-export type Lang = "en" | "es" | "uk" | "ru";
+export type Lang = "en" | "es" | "uk" | "ru" | "pl";
 export type BridgeMode = "echo" | "raw" | "translate";
 export type TranslateProvider = "groq" | "anthropic" | "deepl" | "mock";
 
@@ -52,7 +52,7 @@ export const config = {
     deepl: env.DEEPL_API_KEY ?? "",
   }),
   groqApiKey: env.GROQ_API_KEY ?? "",
-  groqModel: env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  groqModel: env.GROQ_MODEL ?? "qwen/qwen3.8-27b",
   anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: env.ANTHROPIC_MODEL ?? "claude-haiku-5-5",
   deeplApiKey: env.DEEPL_API_KEY ?? "",

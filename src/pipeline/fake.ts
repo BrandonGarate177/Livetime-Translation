@@ -16,6 +16,7 @@ export const CANNED: Record<Lang, string> = {
   es: "Hola, me llamo Diego. Estoy muy bien, gracias. Estoy en Madrid hoy.",
   ru: "Привет, меня зовут Олена. У меня всё хорошо, спасибо. Я звоню из Киева.",
   uk: "Привіт, мене звати Олена. У мене все добре, дякую. Я телефоную з Києва.",
+  pl: "Cześć, mam na imię Kasia. Wszystko w porządku, dziękuję. Dzwonię z Warszawy.",
 };
 
 export const DICTIONARY: Record<string, Partial<Record<Lang, string>>> = {
@@ -82,7 +83,7 @@ export async function* fakeTranslate(opts: TranslateOpts): AsyncIterable<string>
   }
 }
 
-const SAY_VOICE: Record<Lang, string> = { en: "Samantha", es: "Paulina", uk: "Lesya", ru: "Milena" };
+const SAY_VOICE: Record<Lang, string> = { en: "Samantha", es: "Paulina", uk: "Lesya", ru: "Milena", pl: "Zosia" };
 
 function tone(ms: number): Buffer {
   const n = Math.round((SAMPLE_RATE * ms) / 1000);

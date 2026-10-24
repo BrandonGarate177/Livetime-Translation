@@ -14,7 +14,7 @@ person speaks their own language and hears the other in theirs, in the other per
 no-app design in `docs/PLAN.md` wins wherever the two disagree.
 
 - Deadline: 5 hours from kickoff on 2026-10-24. Feature freeze at 4:15 into the build, then rehearse.
-- Demo languages: English, Spanish, Ukrainian, Russian. Headline pair: en ↔ uk.
+- Demo languages: English, Spanish, Ukrainian, Russian, Polish. Headline pair: en ↔ uk (the configured persona today is Angel, es).
 - Pipeline diagram for humans: https://claude.ai/artifact/9sdDnuLqLbjoXNKMsurQGH (opens only once the owner shares it)
 
 ## Architecture in one paragraph
@@ -63,7 +63,8 @@ Done:
 - [x] Telephony core: leg/session/TwiML; dial-out to persona; hang-up on either side; busy/no-answer message
 - [x] `BRIDGE_MODE=echo` and `raw`, both verified end to end with the simulator (not yet on real phones)
 - [x] Twilio-protocol simulator and test clips
-- [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key. Not yet run against live vendors (no keys in `.env`).
+- [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key.
+- [x] **Vendor checks passed with real keys (2026-10-24):** Deepgram nova-3 transcribes en/es/uk/ru/pl clips; ElevenLabs Flash TTFB 170–210 ms warm. Translation bake-off (TTFT, en↔es): Groq `qwen/qwen3.8-27b` 130–250 ms (chosen default), Groq `gpt-oss-120b` ~450 ms, Claude Haiku 5.5 ~500–600 ms. Real pipeline through the simulator: 420–944 ms per turn, speech end → first audio.
 - [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts`, which adapts #6/#7/#8 to the contract.
 
 Blocked on accounts (owner: whoever holds the card):
@@ -76,7 +77,6 @@ Blocked on accounts (owner: whoever holds the card):
 
 To do, in milestone order (see `docs/PLAN.md` §8):
 - [ ] **Spike gate:** real call in `echo` mode, then `raw` mode with two real phones
-- [ ] **Vendor check (needs keys):** `scripts/try-stt.ts` on the en/es/uk clips, `try-translate.ts` TTFT per provider (the #7 bake-off; pick `TRANSLATE_PROVIDER`), `try-tts.ts` TTFB ~400 ms warm. The modules are unit-tested against fake sockets only until then.
 - [ ] **Tier A demo**: `PIPELINE=real`, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
 - [ ] Language auto-detection on the judge's first utterance (`pipeline/langid.ts`)

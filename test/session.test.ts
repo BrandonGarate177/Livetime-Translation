@@ -4,7 +4,7 @@ import { EventEmitter, once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Leg } from "../src/call/leg.js";
 import { CallSession } from "../src/call/session.js";
-import type { Persona } from "../src/config.js";
+import { config, type Persona } from "../src/config.js";
 import { DICTIONARY, CANNED, fakePipeline } from "../src/pipeline/fake.js";
 import type { Pipeline, SttLike, TtsLike } from "../src/pipeline/contract.js";
 
@@ -114,13 +114,19 @@ test("warns loudly when a leg would be synthesized with an empty voice id", () =
   const warnings: string[] = [];
   const orig = console.log;
   console.log = (msg: string) => { if (/voice/i.test(msg)) warnings.push(msg); };
+  // Independent of whatever .env holds: force both fallback voices empty for this test only.
+  const saved = { m: config.fallbackVoiceM, f: config.fallbackVoiceF };
+  config.fallbackVoiceM = "";
+  config.fallbackVoiceF = "";
   try {
     const s = new CallSession("sid5", { ...OLENA, voiceId: "" }, "translate", "en", fakePipeline);
-    s.attach(asLeg(new FakeLeg("A"))); // B hears A in FALLBACK_VOICE_M, which is "" in this test env
-    s.attach(asLeg(new FakeLeg("B"))); // A hears persona.voiceId || FALLBACK_VOICE_F, both ""
+    s.attach(asLeg(new FakeLeg("A"))); // B hears A in FALLBACK_VOICE_M
+    s.attach(asLeg(new FakeLeg("B"))); // A hears persona.voiceId || FALLBACK_VOICE_F
     s.end("test");
   } finally {
     console.log = orig;
+    config.fallbackVoiceM = saved.m;
+    config.fallbackVoiceF = saved.f;
   }
   assert.equal(warnings.length, 2, warnings.join("\n"));
   assert.match(warnings[0], /FALLBACK_VOICE_M/);
