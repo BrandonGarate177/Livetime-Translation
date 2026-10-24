@@ -52,7 +52,7 @@ export const config = {
     deepl: env.DEEPL_API_KEY ?? "",
   }),
   groqApiKey: env.GROQ_API_KEY ?? "",
-  groqModel: env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  groqModel: env.GROQ_MODEL ?? "openai/gpt-oss-120b",
   anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: env.ANTHROPIC_MODEL ?? "claude-haiku-5-5",
   deeplApiKey: env.DEEPL_API_KEY ?? "",
