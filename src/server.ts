@@ -5,12 +5,15 @@ import { config } from "./config.js";
 import { Leg, type LegId } from "./call/leg.js";
 import { CallSession, sessions } from "./call/session.js";
 import { registerTwimlRoutes } from "./twiml.js";
+import { loadPipeline } from "./pipeline/index.js";
+
+const pipeline = config.bridgeMode === "translate" ? await loadPipeline() : undefined;
 
 const app = Fastify({ logger: { level: "info" } });
 await app.register(formbody);
 await app.register(websocket);
 
-registerTwimlRoutes(app);
+registerTwimlRoutes(app, pipeline);
 
 app.get("/health", async () => ({ ok: true, mode: config.bridgeMode, sessions: sessions.size }));
 
@@ -36,7 +39,7 @@ app.get("/media", { websocket: true }, (socket) => {
     if (!session && params.sim === "1") {
       // The simulator skips the /voice/inbound webhook, so it describes the persona inline.
       const persona = config.personas[params.to] ?? { name: "Sim", lang: "uk", forwardTo: "" };
-      session = new CallSession(params.sid, persona, config.bridgeMode, config.defaultCallerLang);
+      session = new CallSession(params.sid, persona, config.bridgeMode, config.defaultCallerLang, pipeline);
       sessions.set(params.sid, session);
       session.on("ended", () => sessions.delete(params.sid));
     }
@@ -52,4 +55,4 @@ app.get("/media", { websocket: true }, (socket) => {
 });
 
 await app.listen({ port: config.port, host: "0.0.0.0" });
-app.log.info(`mode=${config.bridgeMode} personas=${Object.keys(config.personas).join(",") || "none"}`);
+app.log.info(`mode=${config.bridgeMode} pipeline=${pipeline?.name ?? "none"} personas=${Object.keys(config.personas).join(",") || "none"}`);

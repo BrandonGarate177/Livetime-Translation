@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import twilio from "twilio";
 import { config, type Persona } from "./config.js";
 import { CallSession, sessions } from "./call/session.js";
+import type { Pipeline } from "./pipeline/contract.js";
 
 const { VoiceResponse } = twilio.twiml;
 
@@ -39,7 +40,7 @@ async function hangup(callSid: string | undefined, text?: string): Promise<void>
   }
 }
 
-export function registerTwimlRoutes(app: FastifyInstance): void {
+export function registerTwimlRoutes(app: FastifyInstance, pipeline?: Pipeline): void {
   app.post("/voice/inbound", async (req, reply) => {
     const body = req.body as Record<string, string>;
     const persona: Persona | undefined = config.personas[body.To];
@@ -51,7 +52,7 @@ export function registerTwimlRoutes(app: FastifyInstance): void {
     }
 
     const sessionId = body.CallSid;
-    const session = new CallSession(sessionId, persona, config.bridgeMode, config.defaultCallerLang);
+    const session = new CallSession(sessionId, persona, config.bridgeMode, config.defaultCallerLang, pipeline);
     sessions.set(sessionId, session);
     session.log(`inbound from ${body.From} to ${persona.name} (${persona.lang}), mode=${config.bridgeMode}`);
     session.on("ended", () => {
