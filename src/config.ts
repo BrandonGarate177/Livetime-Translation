@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-export type Lang = "en" | "es" | "uk" | "ru";
+export type Lang = "en" | "es" | "uk" | "ru" | "pl";
 export type BridgeMode = "echo" | "raw" | "translate";
 export type TranslateProvider = "groq" | "anthropic" | "deepl" | "mock";
 
