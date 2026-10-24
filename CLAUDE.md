@@ -14,7 +14,7 @@ person speaks their own language and hears the other in theirs, in the other per
 no-app design in `docs/PLAN.md` wins wherever the two disagree.
 
 - Deadline: 5 hours from kickoff on 2026-10-24. Feature freeze at 4:15 into the build, then rehearse.
-- Demo languages: English, Spanish, Ukrainian, Russian. Headline pair: en ↔ uk.
+- Demo languages: English, Spanish, Ukrainian, Russian. Headline pair: en ↔ uk if we get a second number; today the one persona is Diego (es).
 - Pipeline diagram for humans: https://claude.ai/artifact/9sdDnuLqLbjoXNKMsurQGH (opens only once the owner shares it)
 
 ## Architecture in one paragraph
@@ -22,7 +22,8 @@ no-app design in `docs/PLAN.md` wins wherever the two disagree.
 The judge calls a Twilio number. `/voice/inbound` looks up the persona, answers with a
 bidirectional `<Connect><Stream>` (leg A), and dials the teammate's real cell with a second stream
 (leg B). Twilio never bridges the legs: every byte each person hears is sent by our server. Per
-direction: Twilio μ-law 8 kHz → Deepgram streaming STT → fast LLM translation (streamed) →
+direction: Twilio μ-law 8 kHz → Deepgram streaming STT → fast LLM translation (streamed; Claude Haiku 5.5 or
+Groq `openai/gpt-oss-120b`, since Groq no longer lists Llama 70B) →
 ElevenLabs Flash streaming TTS with `output_format=ulaw_8000` → the other leg. No transcoding in the
 hot path. The judge's language is auto-detected from their first utterance. The teammate's voice is
 a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call audio.
@@ -61,21 +62,20 @@ Done:
 - [x] Plan approved (`docs/PLAN.md`)
 - [x] Repo skeleton: Node 22+, TypeScript strict, ESM, Fastify, `ws`, Twilio SDK
 - [x] Telephony core: leg/session/TwiML; dial-out to persona; hang-up on either side; busy/no-answer message
-- [x] `BRIDGE_MODE=echo` and `raw`, both verified end to end with the simulator (not yet on real phones)
+- [x] `BRIDGE_MODE=echo` and `raw` verified with the simulator **and on real phones** (spike gate passed 2026-10-24)
 - [x] Twilio-protocol simulator and test clips
 - [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key. Not yet run against live vendors (no keys in `.env`).
 - [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts`, which adapts #6/#7/#8 to the contract.
 
-Blocked on accounts (owner: whoever holds the card):
-- [ ] **Upgrade Twilio from Trial to paid.** Trial plays a banner on every call and can only call verified numbers.
-- [ ] Buy persona number(s); set Voice webhook to `https://<PUBLIC_HOST>/voice/inbound` (POST)
-- [ ] Put real numbers in `PERSONAS_JSON` (still the `+1555…` example)
-- [ ] Keys: `DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY`, `GROQ_API_KEY` and/or `ANTHROPIC_API_KEY`
+Accounts (checked 2026-10-24):
+- [x] Twilio upgraded to a full account; one number bought (persona: Diego, Spanish)
+- [x] Keys working: Deepgram, ElevenLabs, Groq, Anthropic (`claude-haiku-5-5` available)
+- [x] Static ngrok domain in `PUBLIC_HOST`; Twilio number's Voice webhook points at `/voice/inbound`
+- [x] ElevenLabs on Starter (instant cloning, 40k chars, 10 voice slots)
 - [ ] Record each teammate persona (1–2 min of clean audio) → ElevenLabs instant clone → `voiceId`
-- [ ] Reserve a static ngrok domain so webhooks survive restarts
+- [ ] Optional: second number for a Ukrainian persona (Olena), the plan's headline pair
 
 To do, in milestone order (see `docs/PLAN.md` §8):
-- [ ] **Spike gate:** real call in `echo` mode, then `raw` mode with two real phones
 - [ ] **Vendor check (needs keys):** `scripts/try-stt.ts` on the en/es/uk clips, `try-translate.ts` TTFT per provider (the #7 bake-off; pick `TRANSLATE_PROVIDER`), `try-tts.ts` TTFB ~400 ms warm. The modules are unit-tested against fake sockets only until then.
 - [ ] **Tier A demo**: `PIPELINE=real`, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
