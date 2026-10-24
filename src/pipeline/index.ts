@@ -26,13 +26,62 @@ export function adaptSttModule(mod: AnyModule): (lang: Lang) => SttLike {
   };
 }
 
+/**
+ * The issue says `translate(opts): AsyncIterable<string>`; the module in flight exports `createTranslator()`
+ * whose `translate(text, src, dst, onDelta)` streams through a callback and keeps its own history. Take either.
+ */
 export function adaptTranslateModule(mod: AnyModule): Pick<Pipeline, "translate" | "prewarmTranslate"> {
-  return {
-    translate: (opts: TranslateOpts) => mod.translate(opts),
-    prewarmTranslate: async () => {
-      if (typeof mod.prewarm === "function") await mod.prewarm();
-    },
+  const prewarmTranslate = async () => {
+    if (typeof mod.prewarm === "function") await mod.prewarm();
   };
+  if (mod.createTranslator) {
+    // One Translator per process: its history is per instance, and the demo runs one call at a time.
+    const translator = mod.createTranslator();
+    return {
+      translate: (opts) =>
+        callbackToIterable((onDelta) => translator.translate(opts.text, opts.src, opts.dst, onDelta), opts.signal),
+      prewarmTranslate,
+    };
+  }
+  return { translate: (opts: TranslateOpts) => mod.translate(opts), prewarmTranslate };
+}
+
+async function* callbackToIterable(
+  run: (onDelta: (d: string) => void) => Promise<unknown>,
+  signal?: AbortSignal,
+): AsyncIterable<string> {
+  const queue: string[] = [];
+  let wake: (() => void) | undefined;
+  let done = false;
+  let error: unknown;
+  const notify = () => {
+    wake?.();
+    wake = undefined;
+  };
+  signal?.addEventListener("abort", notify, { once: true });
+  run((d) => {
+    queue.push(d);
+    notify();
+  }).then(
+    () => {
+      done = true;
+      notify();
+    },
+    (err) => {
+      error = err;
+      done = true;
+      notify();
+    },
+  );
+  while (true) {
+    if (queue.length) {
+      yield queue.shift()!;
+      continue;
+    }
+    if (error) throw error;
+    if (done || signal?.aborted) return;
+    await new Promise<void>((resolve) => (wake = resolve));
+  }
 }
 
 export function adaptTtsModule(mod: AnyModule): (voiceId: string, lang: Lang) => TtsLike {

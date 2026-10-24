@@ -48,3 +48,26 @@ test("adaptTtsModule forwards audio/done and supports createTts or TtsStream", a
   assert.equal(inner.flushed, 1);
   assert.deepEqual(events, ["audio:320", "done"]);
 });
+
+test("adaptTranslateModule streams a createTranslator/onDelta module as an async iterable", async () => {
+  const calls: unknown[] = [];
+  const translator = {
+    async translate(text: string, src: string, dst: string, onDelta: (d: string) => void) {
+      calls.push([text, src, dst]);
+      onDelta("Привіт, ");
+      onDelta("світ");
+      return "Привіт, світ";
+    },
+  };
+  const t = adaptTranslateModule({ createTranslator: () => translator });
+  const out: string[] = [];
+  for await (const c of t.translate({ text: "hi world", src: "en", dst: "uk", history: [] })) out.push(c);
+  assert.deepEqual(out, ["Привіт, ", "світ"]);
+  assert.deepEqual(calls, [["hi world", "en", "uk"]]);
+});
+
+test("adaptTranslateModule surfaces a translator rejection as an iteration error", async () => {
+  const translator = { async translate() { throw new Error("provider down"); } };
+  const t = adaptTranslateModule({ createTranslator: () => translator });
+  await assert.rejects(async () => { for await (const _ of t.translate({ text: "x", src: "en", dst: "uk", history: [] })) void _; }, /provider down/);
+});
