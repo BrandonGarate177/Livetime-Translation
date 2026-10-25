@@ -1,0 +1,22 @@
+# Calls live in memory and both legs of a call must reach the same machine, so run exactly one,
+# never let it sleep, and keep it next to Twilio's us1 media region (Ashburn).
+app = "livetime-translation"
+primary_region = "iad"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
