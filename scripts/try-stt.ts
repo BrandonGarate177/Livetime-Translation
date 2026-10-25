@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { FRAME_BYTES, SAMPLE_RATE, decodeWav, pcm16ToMulaw } from "../src/audio/mulaw.js";
 import type { Lang } from "../src/config.js";
-import { SttStream } from "../src/pipeline/stt.js";
+import { FluxStream, createStt } from "../src/pipeline/stt.js";
 
 const [file, lang = "en"] = process.argv.slice(2);
 if (!file) {
@@ -17,9 +17,12 @@ const ulaw = pcm16ToMulaw(pcm);
 
 const t0 = Date.now();
 const stamp = () => `${((Date.now() - t0) / 1000).toFixed(2)}s`;
-const stt = new SttStream(lang as Lang);
+const stt = createStt({ lang: lang as Lang });
+console.log(`engine: ${stt instanceof FluxStream ? "flux" : "nova-3"} (STT_ENGINE=${process.env.STT_ENGINE ?? "default"})`);
 stt.on("transcript", (t) => console.log(`${stamp()} ${t.speechFinal ? "SPEECH_FINAL" : t.isFinal ? "final" : "interim"}: ${t.text}`));
 stt.on("utteranceEnd", () => console.log(`${stamp()} utterance end`));
+stt.on("eagerEndOfTurn", (t) => console.log(`${stamp()} EAGER end of turn: ${t.text}`));
+stt.on("turnResumed", () => console.log(`${stamp()} turn resumed`));
 stt.on("error", (e) => console.error(`${stamp()} error: ${e.message}`));
 
 const silence = Buffer.alloc(FRAME_BYTES, 0xff);
