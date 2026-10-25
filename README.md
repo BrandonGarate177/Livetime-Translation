@@ -1,4 +1,4 @@
-# Livetime Translation
+# Babel - Live Translation
 
 Live translation inside phone calls, spoken in the original speaker's voice.
 
