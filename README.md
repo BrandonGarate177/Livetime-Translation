@@ -4,7 +4,7 @@ Call a phone number and talk to someone who doesn't speak your language. You spe
 
 Neither side installs anything. It's an ordinary phone call, from any phone.
 
-**[▶ Watch the demo](DEMO_VIDEO_URL)** (2 min)
+**[▶ Watch the demo](https://drive.google.com/file/d/1IxAgoBeQJEpiBKK5VKrNPOFEviC6T8gq/view?usp=sharing)** (2 min)
 
 ## Try it
 
