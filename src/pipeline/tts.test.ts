@@ -18,7 +18,7 @@ function make(voice = "v1") {
 
 test("elevenUrl streams μ-law 8k from the Flash model in the target language and stays warm as long as allowed", () => {
   const url = new URL(elevenUrl("voice123", "uk"));
-  assert.equal(url.host, "api.elevenlabs.io");
+  assert.equal(url.host, "api.us.elevenlabs.io", "US region: closest to Twilio us1 and the demo");
   assert.equal(url.pathname, "/v1/text-to-speech/voice123/stream-input");
   assert.equal(url.searchParams.get("output_format"), "ulaw_8000");
   assert.equal(url.searchParams.get("model_id"), "eleven_flash_v2_5");
@@ -120,4 +120,38 @@ test("TtsStream.close closes every socket and stops emitting", () => {
   assert.ok(FakeSocket.all.every((s) => s.closed));
   ws.reply({ audio: b64("late"), isFinal: null });
   assert.deepEqual(events, []);
+});
+
+test("TtsStream flushes ElevenLabs at sentence ends so the first sentence plays while the rest is still being translated", () => {
+  const { tts } = make();
+  const [ws] = FakeSocket.all;
+  ws.open();
+  for (const tok of ["Hola, ", "Olena. ", "¿Cómo ", "va ", "tu ", "día? ", "Llamo ", "desde"]) tts.sendText(tok);
+  const texts = ws.jsonSent.slice(1); // skip init
+  assert.deepEqual(
+    texts.map((m) => [m.text, m.flush === true]),
+    [
+      ["Hola, ", false],
+      ["Olena. ", true],
+      ["¿Cómo ", false],
+      ["va ", false],
+      ["tu ", false],
+      ["día? ", true],
+      ["Llamo ", false],
+      ["desde", false],
+    ],
+  );
+  tts.flush();
+  assert.deepEqual(ws.jsonSent.at(-1), { text: "" });
+  tts.close();
+});
+
+test("TtsStream does not flush on a period inside a number or abbreviation", () => {
+  const { tts } = make();
+  const [ws] = FakeSocket.all;
+  ws.open();
+  for (const tok of ["Son ", "3.5 ", "km, ", "Sr. ", "Pérez."]) tts.sendText(tok);
+  const flushed = ws.jsonSent.slice(1).filter((m) => m.flush === true).map((m) => m.text);
+  assert.deepEqual(flushed, ["Pérez."]);
+  tts.close();
 });

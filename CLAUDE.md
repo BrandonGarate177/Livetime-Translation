@@ -43,11 +43,12 @@ a pre-recorded ElevenLabs clone; the judge is cloned live from ~20 s of call aud
 | `src/pipeline/contract.ts` | The STT/translate/TTS interfaces from issues #6/#7/#8 as TypeScript types, plus the `Pipeline` factory the session consumes |
 | `src/pipeline/index.ts` | `loadPipeline()`: `PIPELINE=real` adapts `stt.ts`/`translate.ts`/`tts.ts` to the contract; `PIPELINE=fake` returns the offline stand-ins |
 | `src/pipeline/fake.ts` | Offline STT (energy VAD + canned text), dictionary translate, macOS `say` TTS, for the simulator and tests |
-| `src/pipeline/stt.ts` | #6 `SttStream`: one Deepgram live socket per leg, μ-law 8k in, `transcript` (+`at`) and `utteranceEnd` events, KeepAlive |
+| `src/pipeline/stt.ts` | #6 `createStt`: Deepgram **Flux** (`FluxStream`, `/v2/listen`, ~250 ms end-of-turn) for the English leg, Nova-3 (`SttStream`, endpointing 300) elsewhere; `STT_ENGINE=nova3` reverts. Emits `transcript` (+`at`), plus `eagerEndOfTurn`/`turnResumed` for speculative translation (not used yet) |
 | `src/pipeline/translate.ts` | #7 `translate(opts)` async stream + `prewarm()`; `TRANSLATE_PROVIDER` groq \| anthropic \| deepl \| mock, DeepL fallback, abortable |
-| `src/pipeline/tts.ts` | #8 `TtsStream`: ElevenLabs Flash to `ulaw_8000`, one socket per utterance with a warm spare, in-order audio, `setVoice` between utterances |
+| `src/pipeline/tts.ts` | #8 `TtsStream`: ElevenLabs Flash to `ulaw_8000` via the US region, one socket per utterance with a warm spare, `flush: true` at each sentence end so the first sentence plays while the rest is still being translated, in-order audio, `setVoice` between utterances |
 | `src/pipeline/socket.ts`, `testing/fake-socket.ts` | WebSocket slice the modules use, and the fake that lets tests play the vendor side |
 | `scripts/try-{stt,translate,tts}.ts` | One-vendor checks with timing (TTFT / TTFB); the done-criteria from #6/#7/#8 |
+| `scripts/enroll-voice.ts` | Uploads recordings as an ElevenLabs Instant Voice Clone and prints the `voiceId` for `PERSONAS_JSON` (#4) |
 | `src/call/leg.ts` | One Twilio Media Stream: `sendAudio` (160-byte frames), `mark`, `clear`, `isPlaying` |
 | `src/audio/mulaw.ts` | μ-law ↔ PCM16, WAV read/write, frame RMS for voice activity |
 | `scripts/sim-call.ts` | Fake Twilio: streams WAVs in as legs A/B, honors `mark`/`clear`, writes `out/heard-A.wav` and `out/heard-B.wav` |
@@ -67,7 +68,9 @@ Done:
 - [x] Telephony core: leg/session/TwiML; dial-out to persona; hang-up on either side; busy/no-answer message
 - [x] `BRIDGE_MODE=echo` and `raw` verified with the simulator **and on real phones** (spike gate passed 2026-10-24)
 - [x] Twilio-protocol simulator and test clips
-- [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key. Not yet run against live vendors (no keys in `.env`).
+- [x] `pipeline/stt.ts` (#6), `pipeline/translate.ts` (#7), `pipeline/tts.ts` (#8) in the issue shapes, loaded by `PIPELINE=real`; mock translate when no LLM key.
+- [x] **Vendor checks passed with real keys (2026-10-24):** Deepgram nova-3 transcribes en/es/uk/ru/pl clips; ElevenLabs Flash TTFB 170–210 ms warm (uk/ru/pl output verified). Translation bake-off (TTFT, en↔es): Groq `qwen/qwen3.8-27b` 130–250 ms (chosen default), Groq `gpt-oss-120b` ~450 ms, Claude Haiku 5.5 ~500–600 ms. Real pipeline through the simulator: 420–944 ms per turn, speech end → first audio.
+- [x] **Latency pass (2026-10-24):** Deepgram Flux on the English leg cuts end-of-turn 530 → 216–284 ms (turn total ~850 → 520–600 ms in the simulator A/B). flux-general-multi measured no faster than Nova-3 for es, so it is opt-in (`FLUX_MULTI_LANGS`). TTS flushes at sentence ends and pins the US region. Watch Flux accuracy on real voices (it misheard the synthetic "Hi, Olena" clip as "Piolina"); `STT_ENGINE=nova3` is the instant revert.
 - [x] `BRIDGE_MODE=translate` wired in `CallSession` (#9): two independent directions, `PIPELINE=fake` runs the simulator end to end offline (en→uk and uk→en). Real vendors plug in through `src/pipeline/index.ts`, which adapts #6/#7/#8 to the contract.
 
 Accounts (checked 2026-10-24):
@@ -75,11 +78,10 @@ Accounts (checked 2026-10-24):
 - [x] Keys working: Deepgram, ElevenLabs, Groq, Anthropic (`claude-haiku-5-5` available)
 - [x] Static ngrok domain in `PUBLIC_HOST`; Twilio number's Voice webhook points at `/voice/inbound`
 - [x] ElevenLabs on Starter (instant cloning, 40k chars, 10 voice slots)
-- [ ] Record each teammate persona (1–2 min of clean audio) → ElevenLabs instant clone → `voiceId`
+- [x] Angel recorded and cloned in ElevenLabs (`voiceId` goes in `PERSONAS_JSON`; verified es + en with `try-tts`). More personas: `scripts/enroll-voice.ts`
 - [ ] Optional: second number for the Ukrainian teammate's persona
 
 To do, in milestone order (see `docs/PLAN.md` §8):
-- [ ] **Vendor check (needs keys):** `scripts/try-stt.ts` on the en/es/uk clips, `try-translate.ts` TTFT per provider (the #7 bake-off; pick `TRANSLATE_PROVIDER`), `try-tts.ts` TTFB ~400 ms warm. The modules are unit-tested against fake sockets only until then.
 - [ ] **Tier A demo**: `PIPELINE=real`, one real call in each direction, tag `demo-a`
 - [ ] Barge-in (`clear` when the listener talks >300 ms during playback) and echo gate
 - [ ] Live judge clone + delete on hang-up (`voice/clone.ts`), consent prompt pre-rendered in 4 languages

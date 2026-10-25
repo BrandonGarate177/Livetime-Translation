@@ -77,7 +77,7 @@ export interface ChatMessage {
   content: string;
 }
 
-const LANG_NAME: Record<Lang, string> = { en: "English", es: "Spanish", uk: "Ukrainian", ru: "Russian" };
+const LANG_NAME: Record<Lang, string> = { en: "English", es: "Spanish", uk: "Ukrainian", ru: "Russian", pl: "Polish" };
 
 export function buildChatMessages(opts: TranslateOpts): { system: string; messages: ChatMessage[] } {
   const system =

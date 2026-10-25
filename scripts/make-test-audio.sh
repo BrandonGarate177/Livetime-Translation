@@ -9,4 +9,5 @@ gen() { # name voice text
 gen en-hello Samantha "Hi Olena, this is a judge from the hackathon. How is your day going? Where are you calling from?"
 gen es-hello Paulina "Hola, me llamo Diego. Estoy muy bien, gracias. Estoy en Madrid hoy."
 gen ru-hello Milena "Привет, меня зовут Олена. У меня всё хорошо, спасибо. Я звоню из Киева."
+gen pl-hello Zosia "Cześć, mam na imię Kasia. Wszystko w porządku, dziękuję. Dzwonię z Warszawy."
 gen uk-hello Lesya "Привіт, мене звати Олена. У мене все добре, дякую. Я телефоную з Києва."

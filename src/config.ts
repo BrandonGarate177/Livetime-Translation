@@ -1,8 +1,10 @@
 import "dotenv/config";
 
-export type Lang = "en" | "es" | "uk" | "ru";
+export type Lang = "en" | "es" | "uk" | "ru" | "pl";
 export type BridgeMode = "echo" | "raw" | "translate";
 export type TranslateProvider = "groq" | "anthropic" | "deepl" | "mock";
+/** flux = Deepgram Flux turn detection where the language allows (en/es/ru), Nova-3 elsewhere; nova3 = Nova-3 everywhere. */
+export type SttEngine = "flux" | "nova3";
 
 export interface Persona {
   name: string;
@@ -45,6 +47,12 @@ export const config = {
   pipeline: (env.PIPELINE ?? "real") as "real" | "fake",
   deepgramApiKey: env.DEEPGRAM_API_KEY ?? "",
   deepgramModel: env.DEEPGRAM_MODEL ?? "nova-3",
+  sttEngine: (env.STT_ENGINE ?? "flux") as SttEngine,
+  // Flux end-of-turn: 0.5–1.0 confidence (lower = faster, more false ends); timeout forces a turn end after silence.
+  fluxEotThreshold: env.FLUX_EOT_THRESHOLD ?? "0.7",
+  fluxEotTimeoutMs: env.FLUX_EOT_TIMEOUT_MS ?? "2000",
+  // Languages routed to flux-general-multi (es/ru are supported). Measured no faster than Nova-3 for es, so opt-in.
+  fluxMultiLangs: (env.FLUX_MULTI_LANGS ?? "").split(",").map((s) => s.trim()).filter(Boolean) as Lang[],
 
   translateProvider: translateProvider(env.TRANSLATE_PROVIDER, {
     groq: env.GROQ_API_KEY ?? "",
@@ -62,6 +70,8 @@ export const config = {
 
   elevenlabsApiKey: env.ELEVENLABS_API_KEY ?? "",
   elevenModel: env.ELEVEN_TTS_MODEL ?? "eleven_flash_v2_5",
+  // Pin the US region: Twilio us1 media and the demo are there; ElevenLabs quotes 100–150 ms TTFB in-region.
+  elevenHost: env.ELEVENLABS_HOST ?? "api.us.elevenlabs.io",
   fallbackVoiceM: env.FALLBACK_VOICE_M ?? "",
   fallbackVoiceF: env.FALLBACK_VOICE_F ?? "",
 };

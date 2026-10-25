@@ -16,7 +16,7 @@ export function elevenUrl(voiceId: string, lang: Lang, model = config.elevenMode
     language_code: lang,
     inactivity_timeout: "180", // the maximum, so a warm spare survives a long pause
   });
-  return `wss://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream-input?${params}`;
+  return `wss://${config.elevenHost}/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream-input?${params}`;
 }
 
 export function parseElevenMessage(raw: string): { audio: Buffer } | { done: true } | undefined {
@@ -34,6 +34,21 @@ const INIT_MESSAGE = {
 };
 const SPARE_MAX_AGE_MS = 150_000; // under the 180 s inactivity timeout
 
+/**
+ * True when `text` ends a sentence, so ElevenLabs can be told to generate now instead of waiting for the
+ * chunk schedule or end-of-stream. Periods after a number ("3.") or a short capitalised abbreviation
+ * ("Sr.", "Dr.", "Mrs.") don't count.
+ */
+export function endsSentence(text: string): boolean {
+  const t = text.trimEnd().replace(/["'»”’)\]]+$/, "");
+  if (/[!?…]$/.test(t)) return true;
+  if (!t.endsWith(".")) return false;
+  const word = t.slice(0, -1).split(/\s+/).at(-1) ?? "";
+  if (/^\d+$/.test(word)) return false;
+  if (/^\p{Lu}\p{Ll}{0,3}$/u.test(word)) return false;
+  return word.length > 0;
+}
+
 interface Socket {
   ws: SocketLike;
   voiceId: string;
@@ -43,7 +58,8 @@ interface Socket {
 
 interface Utterance {
   socket?: Socket;
-  pendingText: string[]; // text written before the socket opened
+  text: string; // everything written so far, for sentence detection
+  pendingText: { text: string; flush: boolean }[]; // written before the socket opened
   endRequested: boolean;
   chunks: Buffer[]; // audio waiting for its turn
   finished: boolean;
@@ -70,8 +86,11 @@ export class TtsStream extends EventEmitter<TtsEvents> implements TtsLike {
     if (this.closed || !chunk) return;
     this.current ??= this.begin();
     const utt = this.current;
-    if (utt.socket!.open) utt.socket!.ws.send(JSON.stringify({ text: chunk }));
-    else utt.pendingText.push(chunk);
+    utt.text += chunk;
+    // A sentence boundary gets `flush: true`: its audio starts now, while the translator is still writing the next one.
+    const msg = endsSentence(utt.text) ? { text: chunk, flush: true } : { text: chunk };
+    if (utt.socket!.open) utt.socket!.ws.send(JSON.stringify(msg));
+    else utt.pendingText.push({ text: chunk, flush: msg.flush === true });
   }
 
   /** Ends the current utterance. `done` fires once its last audio has been emitted, in order with earlier ones. */
@@ -81,7 +100,7 @@ export class TtsStream extends EventEmitter<TtsEvents> implements TtsLike {
     this.current = undefined;
     if (!utt) {
       // Nothing was spoken, but callers still get their done so turn accounting stays balanced.
-      this.queue.push({ pendingText: [], endRequested: true, chunks: [], finished: true });
+      this.queue.push({ text: "", pendingText: [], endRequested: true, chunks: [], finished: true });
       queueMicrotask(() => this.pump());
       return;
     }
@@ -140,10 +159,10 @@ export class TtsStream extends EventEmitter<TtsEvents> implements TtsLike {
       socket = this.spare!;
       this.spare = undefined;
     }
-    const utt: Utterance = { socket, pendingText: [], endRequested: false, chunks: [], finished: false };
+    const utt: Utterance = { socket, text: "", pendingText: [], endRequested: false, chunks: [], finished: false };
     const { ws } = socket;
     ws.on("open", () => {
-      for (const text of utt.pendingText.splice(0)) ws.send(JSON.stringify({ text }));
+      for (const p of utt.pendingText.splice(0)) ws.send(JSON.stringify(p.flush ? { text: p.text, flush: true } : { text: p.text }));
       if (utt.endRequested) ws.send(JSON.stringify({ text: "" }));
     });
     ws.on("message", (data: Buffer | string) => {

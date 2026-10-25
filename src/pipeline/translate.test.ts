@@ -94,3 +94,10 @@ test("parseSseLine extracts streamed content deltas and signals the end", () => 
 test("prewarm never throws", async () => {
   await prewarm({ primary: "mock" });
 });
+
+test("buildChatMessages knows Polish", () => {
+  const { system, messages } = buildChatMessages({ text: "Cześć.", src: "pl", dst: "en", history: [] });
+  assert.match(system, /Polish speaker and a English speaker|Polish/);
+  assert.doesNotMatch(system, /undefined/);
+  assert.equal(messages[0].content, "[pl→en] Cześć.");
+});
